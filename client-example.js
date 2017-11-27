@@ -1,10 +1,9 @@
-//Create an account on Firebase, and use the credentials they give you in place of the following
-
-
-
 var webSocket = new WebSocketClient('ws://localhost:8090')
 webSocket.connect().then(console.log, console.log )
-var database = undefined//firebase.database().ref();
+
+var lastchatarea = document.getElementById("lastchatarea")
+var chatsend = document.getElementById("chatsend")
+
 var yourVideo = document.getElementById("yourVideo");
 var friendsVideo = document.getElementById("friendsVideo");
 var yourId = Math.floor(Math.random()*1000000000);
@@ -16,29 +15,27 @@ var servers = {
 
 var pc = new RTCPeerConnection(servers);
 var sendChannel = pc.createDataChannel('sendDataChannel', null)
-/*pc.ondatachannel = function (event){
+pc.ondatachannel = function (event){
   receiveChannel = event.channel;
-  receiveChannel.onmessage = message => console.log('message received by datachannel:', message);
+  receiveChannel.onmessage = message => lastchatarea.value = message.data
   //receiveChannel.onopen = onReceiveChannelStateChange;
   //receiveChannel.onclose = onReceiveChannelStateChange;
-}*/
+}
 
 pc.onicecandidate = (event => 
-  event.candidate 
-  ? sendMessage({'ice':event.candidate})
+  event.candidate ?
+    sendMessage({'ice':event.candidate})
   : console.log("Sent All Ice", event));
 
-pc.onaddstream = (event => friendsVideo.srcObject = event.stream);
+pc.onaddstream = event => {
+  friendsVideo.srcObject = event.stream;
+  console.log('onaddstream')
+} 
 
-//var sendMessage = (senderId, data) => database.push({ sender: senderId, message:  data }).remove();
-var sendMessage = webSocket.send //console.log();
+var sendMessage = webSocket.send
 
 function readMessage(msg, sender) {
   console.log('read message', msg, sender)
-  
-    /*if (msg.type)
-       receiveMessage(msg)
-    else*/ 
   if (msg.ice != undefined)
     pc.addIceCandidate(new RTCIceCandidate(msg.ice));
   else if ( msg.sdp && msg.sdp.type == "offer")
@@ -53,14 +50,14 @@ function readMessage(msg, sender) {
   }
 };
 
-//database.on('child_added', data => (val => readMessage(JSON.parse(val.message), val.sender)) (data.val()) );
 webSocket.on('broadcast', readMessage)
 webSocket.on('ack_message_received', () => {})
 
 function showMyFace() {
   navigator.mediaDevices.getUserMedia({audio:false, video:true})
     .then(stream => yourVideo.srcObject = stream)
-    .then(stream => pc.addStream(stream));
+    .then(stream => pc.addStream(stream))
+    .then(() => showFriendsFace())
 }
 
 function showFriendsFace() {
@@ -69,7 +66,8 @@ function showFriendsFace() {
     .then(() => sendMessage({'sdp': pc.localDescription}) );
 }
 
-function sendHelloWorld() {}
+function sendHelloWorld() {sendMessage({type:'chat', message :'hello world'})}
+function sendHelloWorld_datachannel() { sendChannel.send(chatsend.value)}
 function receiveMessage(data){alert(data.message)}
 
 function WebSocketClient(url){
@@ -110,3 +108,5 @@ function WebSocketClient(url){
     });
   }
 }
+
+//connect('ws://localhost:8090')
