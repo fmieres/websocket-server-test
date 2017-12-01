@@ -2,8 +2,9 @@ const
   WebSocket     = require('ws'),
   fs            = require('fs'),
   //CircularJSON  = require('circular-json')
-  uuid          = require('uuid/v4')
-  moment        = require('moment')
+  uuid          = require('uuid/v4'),
+  moment        = require('moment'),
+  moment        = require('express')
 ;
 
 const
@@ -58,7 +59,16 @@ function logLeft(){
   console.log.apply(console, [moment().format(), ' -> ' , ...arguments])
 }
 
-const WEB_SERVER = new WebSocket.Server({ port: 3000 });
+const PORT = process.env.PORT || 3000;
+const INDEX = path.join(__dirname, 'index.html');
+
+const server = express()
+  .use((req, res) => res.sendFile(INDEX) )
+  .listen(PORT, () => console.log(`Listening on ${ PORT }`));
+
+
+const WEB_SERVER = new WebSocket.Server({ server });
+// const WEB_SERVER = new WebSocket.Server({ port: 3000 });
 WEB_SERVER.$listeners = []
 WEB_SERVER.$speakers = []
 WEB_SERVER.$listeners_in_use = {}
