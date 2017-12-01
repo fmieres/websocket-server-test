@@ -1,7 +1,7 @@
 const
   WebSocket     = require('ws'),
   fs            = require('fs'),
-  CircularJSON  = require('circular-json')
+  //CircularJSON  = require('circular-json')
   uuid          = require('uuid/v4')
   moment        = require('moment')
 ;
