@@ -4,7 +4,7 @@ const
   //CircularJSON  = require('circular-json')
   uuid          = require('uuid/v4'),
   moment        = require('moment'),
-  moment        = require('express')
+  express        = require('express')
 ;
 
 const
