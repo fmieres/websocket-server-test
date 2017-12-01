@@ -58,7 +58,7 @@ function logLeft(){
   console.log.apply(console, [moment().format(), ' -> ' , ...arguments])
 }
 
-const WEB_SERVER = new WebSocket.Server({ port: 8090 });
+const WEB_SERVER = new WebSocket.Server({ port: 3000 });
 WEB_SERVER.$listeners = []
 WEB_SERVER.$speakers = []
 WEB_SERVER.$listeners_in_use = {}
