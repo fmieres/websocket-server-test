@@ -5,11 +5,11 @@
   "main": "server.js",
   "dependencies": {
     "uuid": "^3.1.0",
-    "ws": "^3.3.2"
+    "ws": "^3.3.2",
+    "moment": "^2.19.2"
   },
   "devDependencies": {
-    "circular-json": "^0.4.0",
-    "moment": "^2.19.2"
+    "circular-json": "^0.4.0"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
