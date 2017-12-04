@@ -72,9 +72,7 @@ const server = express()
 
 const WEB_SERVER = new WebSocket.Server({ server });
 // const WEB_SERVER = new WebSocket.Server({ port: 3000 });
-WEB_SERVER.$listeners = []
-WEB_SERVER.$speakers = []
-WEB_SERVER.$listeners_in_use = {}
+emptyQueues()
 
 setInterval(() => logLeft('####### listeners ',WEB_SERVER.$listeners.map(x => ({ uuid : x.socket.$uuid }) ), '#######'), 5000)
 setInterval(() => logLeft('####### speakers ', WEB_SERVER.$speakers .map(x => ({ uuid : x.socket.$uuid }) ), '#######'), 5000)
@@ -118,12 +116,19 @@ function processMessage(sender, message){
 
 function handleServerCall(sender, data){
   let actions = {}
-  actions[QUEUE_AS_LISTENER] = () => queueAsListener(sender, data),
-  actions[QUEUE_AS_SPEAKER]  = () => queueAsSpeaker(sender, data),
-  actions[ACCEPT_SPEAKER]    = () => acceptSpeaker(sender, data),
-  actions[PING]              = () => pong(sender, data),
+  actions[QUEUE_AS_LISTENER] = () => queueAsListener(sender, data)
+  actions[QUEUE_AS_SPEAKER]  = () => queueAsSpeaker(sender, data)
+  actions[ACCEPT_SPEAKER]    = () => acceptSpeaker(sender, data)
+  actions[PING]              = () => pong(sender, data)
+  actions['emptyQueues']     = () => emptyQueues(sender, data)
   actions.default            = () => (() => log('unknown call type', data.type))()
   return (actions[data.type] || actions.default) ()
+}
+
+function emptyQueues(){
+  WEB_SERVER.$listeners = []
+  WEB_SERVER.$speakers = []
+  WEB_SERVER.$listeners_in_use = {}
 }
 
 function pong(sender, data){
@@ -219,8 +224,4 @@ function processClose(socket){
     [socket.$uuid, pair.$uuid].forEach(removeUuid)
     pair.send(package(ASSERT_DISSCONNECTED_PAIR, {}, pair.$uuid))
   }
-
-
-
-
 }
