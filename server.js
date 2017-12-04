@@ -30,7 +30,9 @@ const
   QUEUE_AS_LISTENER          = 'queue_as_listener',
   QUEUE_AS_SPEAKER           = 'queue_as_speaker',
   ACCEPT_SPEAKER             = 'accept_speaker',
-  ASSERT_DISSCONNECTED_PAIR  = 'assert_dissconnected_pair'
+  ASSERT_DISSCONNECTED_PAIR  = 'assert_dissconnected_pair',
+  PING                       = 'ping',
+  PONG                       = 'pong'
 
 ;
 
@@ -119,9 +121,13 @@ function handleServerCall(sender, data){
   actions[QUEUE_AS_LISTENER] = () => queueAsListener(sender, data),
   actions[QUEUE_AS_SPEAKER]  = () => queueAsSpeaker(sender, data),
   actions[ACCEPT_SPEAKER]    = () => acceptSpeaker(sender, data),
+  actions[PING]              = () => pong(sender, data),
   actions.default            = () => (() => log('unknown call type', data.type))()
-  
   return (actions[data.type] || actions.default) ()
+}
+
+function pong(sender, data){
+  sender.send(package(PONG, {}, sender.$uuid))
 }
 
 function handleWebRTCCall(sender, data) {
