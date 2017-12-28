@@ -12,6 +12,8 @@ const
   ACK_ADDED_CHILD            = 'ack_added_child',
   ACK_MESSAGE_RECEIVED       = 'ack_message_received',
   BROADCAST_MESSAGE          = 'broadcast_message',
+  BROADCAST_SPEAKER_JOINED   = 'broadcast_speaker_joined',
+  BROADCAST_SPEAKER_COUNT    = 'broadcast_speaker_count',
   ASK_TAKE_CALL              = 'ask_take_call',
   ASSERT_ADDED_CHILD         = 'assert_added_child',
   ASSERT_ASKED_LISTENER      = 'assert_asked_listener',
@@ -21,6 +23,8 @@ const
   ASSERT_CONNECTED_WITH_PAIR = 'assert_connected_with_pair'
   ASSERT_NEGOTIATION_LOST    = 'assert_negotiation_lost'
   ASSERT_NEGOTIATION_FAILED  = 'assert_negotiation_failed',
+  ASSERT_NEGOTIATION_CLOSED_BY_PAIR  = 'assert_negotiation_closed_by_pair',
+  CLOSE_CONNECTION           = 'close_connection',
   ESTABLISHED                = 'state_established,'
   WAITING                    = 'state_waiting',
   NOTICE                     = 'state_notice',
@@ -32,7 +36,10 @@ const
   ACCEPT_SPEAKER             = 'accept_speaker',
   ASSERT_DISSCONNECTED_PAIR  = 'assert_dissconnected_pair',
   PING                       = 'ping',
-  PONG                       = 'pong'
+  PONG                       = 'pong',
+  INTERVAL_TIME_LOG          = 5000,
+  INTERVAL_TIME_BROADCAST    = 5000
+
 
 ;
 
@@ -62,7 +69,7 @@ function logLeft(){
   console.log.apply(console, [moment().format(), ' -> ' , ...arguments])
 }
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 const INDEX = path.join(__dirname, 'index.html');
 
 const server = express()
@@ -72,12 +79,31 @@ const server = express()
 
 const WEB_SERVER = new WebSocket.Server({ server });
 // const WEB_SERVER = new WebSocket.Server({ port: 3000 });
+
 emptyQueues()
+setUpIntervals()
 
-setInterval(() => logLeft('####### listeners ',WEB_SERVER.$listeners.map(x => ({ uuid : x.socket.$uuid }) ), '#######'), 5000)
-setInterval(() => logLeft('####### speakers ', WEB_SERVER.$speakers .map(x => ({ uuid : x.socket.$uuid }) ), '#######'), 5000)
-setInterval(() => logLeft('####### in_use ',[...(new Set(Object.values(WEB_SERVER.$listeners_in_use)))].map(x=> { return {listener : x.listener.$uuid, speaker : x.speaker.$uuid, speaker_state : x.speaker_state, listener_state : x.listener_state}}), '#######'), 5000);
+function logIntervals(){
+  setInterval(() =>
+    logLeft('####### listeners ',WEB_SERVER.$listeners.map(x => ({ uuid : x.socket.$uuid }) ), '#######'), 5000)
+  setInterval(() => 
+    logLeft('####### speakers ', WEB_SERVER.$speakers .map(x => ({ uuid : x.socket.$uuid }) ), '#######'), 5000)
+  setInterval(() => tryCatch( _ =>
+    logLeft('####### in_use ',[...(new Set(Object.values(WEB_SERVER.$listeners_in_use)))].map(
+      x=> ({listener : x.listener.$uuid, speaker : x.speaker.$uuid, speaker_state : x.speaker_state, listener_state : x.listener_state})
+    , '#######')
+  )), 5000);
+}
 
+function setUpIntervals(){
+  logIntervals()
+  broadcastIntervals()
+}
+
+function broadcastIntervals(){
+  setInterval(() => broadcast({ speakers_waiting : WEB_SERVER.$speakers.length}, BROADCAST_SPEAKER_COUNT)
+  ,5000)
+}
 
 WEB_SERVER.on('connection', (socket,request) => {
   socket.$uuid = uuid()
@@ -94,13 +120,24 @@ WEB_SERVER.on('connection', (socket,request) => {
   })
 
   socket.send(package(ACK_ADDED_CHILD, { uuid : socket.$uuid }))
+  broadcastExcept(socket, {uuid : socket.$uuid }, ASSERT_ADDED_CHILD)
+});
 
+function broadcastExcept(aClient, message, key = BROADCAST_MESSAGE){
   WEB_SERVER.clients.forEach(client => {
-    client !== socket && client.readyState === WebSocket.OPEN ?
-      client.send(package(ASSERT_ADDED_CHILD, { uuid : socket.$uuid }))
+    client !== aClient && client.readyState === WebSocket.OPEN ?
+      client.send(package(key, message))
       : noop()
   })
-});
+}
+
+function broadcast(message, key = BROADCAST_MESSAGE) {
+  WEB_SERVER.clients.forEach(client => 
+    client.readyState === WebSocket.OPEN ? 
+      client.send(package(key, message))
+      : noop()
+  )
+}
 
 function processMessage(sender, message){
   log('message received from: ', sender.$uuid, ' - ', message)
@@ -121,8 +158,16 @@ function handleServerCall(sender, data){
   actions[ACCEPT_SPEAKER]    = () => acceptSpeaker(sender, data)
   actions[PING]              = () => pong(sender, data)
   actions['emptyQueues']     = () => emptyQueues(sender, data)
+  actions[CLOSE_CONNECTION]  = () => closeConnection(sender, data)
   actions.default            = () => (() => log('unknown call type', data.type))()
   return (actions[data.type] || actions.default) ()
+}
+
+function closeConnection(sender){
+  let pair = getTargetOfSender(sender)
+  delete WEB_SERVER.$listeners_in_use[sender.$uuid]
+  delete WEB_SERVER.$listeners_in_use[pair.$uuid]
+  pair.send(package(ASSERT_NEGOTIATION_CLOSED_BY_PAIR, {}, sender.$uuid))
 }
 
 function emptyQueues(){
@@ -138,7 +183,6 @@ function pong(sender, data){
 function handleWebRTCCall(sender, data) {
   let target = getTargetOfSender(sender)
   if (target) {
-    console.log('log handle!!!!!!!!!!!: ',target.$uuid, sender.$uuid, data);
     target.send(package(CHANNEL_WEBRTC, data, sender.$uuid ))
   } else {
     sender.send(package(ASSERT_NEGOTIATION_LOST, {}, sender.$uuid))
@@ -146,9 +190,7 @@ function handleWebRTCCall(sender, data) {
 }
 
 function getTargetOfSender(sender){
-  console.log('log: ',sender.$uuid, sender.$type,"---------------------------------------------------");
   let negotiation = WEB_SERVER.$listeners_in_use[sender.$uuid]
-  console.log('log: #############', (negotiation ? 'found' : 'not found'));
   return negotiation ? negotiation[sender.$type === LISTENER ? SPEAKER : LISTENER  ] : negotiation
 }
 
@@ -190,6 +232,7 @@ function queueAsSpeaker(speaker, data){
     speaker        .send(package(ASSERT_ASKED_LISTENER, {}, listener.socket.$uuid))
   } else {
     WEB_SERVER.$speakers.push({ socket : speaker, timestamp : moment(), profile : data.profile})
+    broadcastExcept(speaker, { speakers_waiting : WEB_SERVER.$speakers.length}, BROADCAST_SPEAKER_JOINED)
     speaker.send(package(
       WEB_SERVER.$listeners_in_use.length > 0 ? ASSERT_NO_FREE_LISTENER : ASSERT_NO_ONLINE_LISTENER, 
       { total_listeners : WEB_SERVER.$listeners_in_use.length },
