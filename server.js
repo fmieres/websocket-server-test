@@ -164,10 +164,7 @@ function handleServerCall(sender, data){
 }
 
 function closeConnection(sender){
-  let pair = getTargetOfSender(sender)
-  delete WEB_SERVER.$listeners_in_use[sender.$uuid]
-  delete WEB_SERVER.$listeners_in_use[pair.$uuid]
-  pair.send(package(ASSERT_NEGOTIATION_CLOSED_BY_PAIR, {}, sender.$uuid))
+  processClose(sender, ASSERT_NEGOTIATION_CLOSED_BY_PAIR)  
 }
 
 function emptyQueues(){
@@ -216,10 +213,14 @@ function queueAsListener(listener, data){
   if (speaker){
     addItemToListenersInUse(speaker.socket, NOTICE, listener, WAITING)
     listener.send(package(ASK_TAKE_CALL, speaker.profile, speaker.socket.$uuid))
-    speaker .send(package(ASSERT_ASKED_LISTENER, {}, listener.$uuid))
+    speaker.socket.send(package(ASSERT_ASKED_LISTENER, {}, listener.$uuid))
   } else {
-    listener.send(package(ASSERT_NO_SPEAKER, { current_speakers : WEB_SERVER.$speakers.length }, listener.$uuid))
-    WEB_SERVER.$listeners.push({ socket : listener, timestamp : moment() })
+    if (!!WEB_SERVER.$listeners.find( list => listener.$uuid === list.$uuid )){
+      listener.send(package(ALREADY_QUEUED_AS_LISTENER, {}, listener.$uuid))
+    } else {
+      listener.send(package(ASSERT_NO_SPEAKER, { current_speakers : WEB_SERVER.$speakers.length }, listener.$uuid))
+      WEB_SERVER.$listeners.push({ socket : listener, timestamp : moment() })
+    }
   }
 }
 
@@ -243,7 +244,7 @@ function queueAsSpeaker(speaker, data){
 
 function acceptSpeaker(listener, data){
   let negotiation = WEB_SERVER.$listeners_in_use[listener.$uuid]
-  if (negotiation && negotiation.speaker_state === WAITING) {
+  if (negotiation && negotiation.speaker_state === NOTICE) {
     Object.assign(negotiation, { speaker_state : ESTABLISHED, listener_state : ESTABLISHED } )
     negotiation.listener.send(package(ASSERT_CONNECTED_WITH_PAIR, { target : negotiation.speaker.$uuid  }, negotiation.speaker.$uuid))
     negotiation.speaker .send(package(ASSERT_CONNECTED_WITH_PAIR, { target : negotiation.listener.$uuid }, negotiation.speaker.$uuid))
@@ -253,11 +254,11 @@ function acceptSpeaker(listener, data){
   }
 }
 
-function processClose(socket){
-  log('closed,', socket.$uuid);
+function processClose(socket, message = ASSERT_DISSCONNECTED_PAIR){
   let queue_name = socket.$type === LISTENER ? '$listeners' : '$speakers'
-  let index = WEB_SERVER[queue_name].findIndex(item => item.socket === socket)
-  if (index >= 0) WEB_SERVER[queue_name].splice(index,1)
+  /*let index = WEB_SERVER[queue_name].findIndex(item => item.socket === socket)
+  if (index >= 0) WEB_SERVER[queue_name].splice(index,1)*/
+  WEB_SERVER[queue_name] = WEB_SERVER[queue_name].filter( item => item.socket !== socket)
   let negotiation = WEB_SERVER.$listeners_in_use[socket.$uuid]
   if (negotiation && !negotiation.is_cancelling) {
     negotiation.is_cancelling = true
@@ -265,6 +266,6 @@ function processClose(socket){
     let pair_type = socket.$type === LISTENER ? SPEAKER : LISTENER
     let pair = negotiation[pair_type];
     [socket.$uuid, pair.$uuid].forEach(removeUuid)
-    pair.send(package(ASSERT_DISSCONNECTED_PAIR, {}, pair.$uuid))
+    pair.send(package(message, {}, pair.$uuid))
   }
 }
