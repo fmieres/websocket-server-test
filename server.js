@@ -242,9 +242,13 @@ function queueAsSpeaker(speaker, data){
   }
 }
 
+function isValidNegotiation({ speaker_state : speaker_state, listener_state : listener_state}){
+  return (speaker_state === NOTICE && listener_state === WAITING ) || (speaker_state === WAITING && listener_state === NOTICE )
+}
+
 function acceptSpeaker(listener, data){
   let negotiation = WEB_SERVER.$listeners_in_use[listener.$uuid]
-  if (negotiation && negotiation.speaker_state === NOTICE) {
+  if (negotiation && isValidNegotiation(negotiation) ) {
     Object.assign(negotiation, { speaker_state : ESTABLISHED, listener_state : ESTABLISHED } )
     negotiation.listener.send(package(ASSERT_CONNECTED_WITH_PAIR, { target : negotiation.speaker.$uuid  }, negotiation.speaker.$uuid))
     negotiation.speaker .send(package(ASSERT_CONNECTED_WITH_PAIR, { target : negotiation.listener.$uuid }, negotiation.speaker.$uuid))
