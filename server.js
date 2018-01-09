@@ -85,14 +85,14 @@ setUpIntervals()
 
 function logIntervals(){
   setInterval(() =>
-    logLeft('####### listeners ',WEB_SERVER.$listeners.map(x => ({ uuid : x.socket.$uuid }) ), '#######'), 5000)
+    logLeft('####### listeners ',WEB_SERVER.$listeners.map(x => ({ uuid : x.socket.$uuid }) ), '#######'), INTERVAL_TIME_LOG)
   setInterval(() => 
-    logLeft('####### speakers ', WEB_SERVER.$speakers .map(x => ({ uuid : x.socket.$uuid }) ), '#######'), 5000)
+    logLeft('####### speakers ', WEB_SERVER.$speakers .map(x => ({ uuid : x.socket.$uuid }) ), '#######'), INTERVAL_TIME_LOG)
   setInterval(() => tryCatch( _ =>
     logLeft('####### in_use ',[...(new Set(Object.values(WEB_SERVER.$listeners_in_use)))].map(
       x=> ({listener : x.listener.$uuid, speaker : x.speaker.$uuid, speaker_state : x.speaker_state, listener_state : x.listener_state})
     , '#######')
-  )), 5000);
+  )), INTERVAL_TIME_LOG);
 }
 
 function setUpIntervals(){
@@ -102,7 +102,7 @@ function setUpIntervals(){
 
 function broadcastIntervals(){
   setInterval(() => broadcast({ speakers_waiting : WEB_SERVER.$speakers.length}, BROADCAST_SPEAKER_COUNT)
-  ,5000)
+  ,INTERVAL_TIME_BROADCAST)
 }
 
 WEB_SERVER.on('connection', (socket,request) => {
